@@ -1,5 +1,3 @@
-from threading import Thread
-from time import sleep
 from djitellopy import Tello
 
 tello = Tello()
