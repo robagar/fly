@@ -21,7 +21,7 @@ class TelloProtocol:
     def datagram_received(self, data, addr):
         message = data.decode()
         print('RECEIVED', message)
-        if message == 'ok' and self.command_ok:
+        if message == 'ok' and self.command_ok and not self.command_ok.done():
             self.command_ok.set_result(True)
 
     def error_received(self, exc):
@@ -29,15 +29,15 @@ class TelloProtocol:
 
     def connection_lost(self, exc):
         print('CONNECTION LOST', exc)
+        if self.command_ok:
+            self.command_ok.cancel()
 
 async def main():
     loop = asyncio.get_event_loop()
 
-    done = loop.create_future()
-    loop.add_signal_handler(signal.SIGINT, lambda: done.set_result(True))
-
     transport, protocol = await loop.create_datagram_endpoint(TelloProtocol, remote_addr=(DRONE_HOST,CONTROL_UDP_PORT))
 
+    loop.add_signal_handler(signal.SIGINT, lambda: transport.close())
 
     async def send(message):
         print(f'SEND {message}')
@@ -45,15 +45,11 @@ async def main():
         transport.sendto(message.encode())
         await protocol.command_ok
 
-
-    await send('command')
-    await send('takeoff')
-    await send('land')
-
     try:
-        await done
+        await send('command')
+        await send('takeoff')
+        await send('land')
     finally:
-        transport.close()    
-
+        transport.close()
 
 asyncio.run(main())
